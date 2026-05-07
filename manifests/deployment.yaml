@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minecraft-be
+  labels:
+    app: minecraft-be
+spec:
+  replicas: 1
+  # Recreate is required: RWO PVC cannot be mounted by two pods simultaneously,
+  # and running two server instances against the same world would corrupt data.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: minecraft-be
+  template:
+    metadata:
+      labels:
+        app: minecraft-be
+    spec:
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: minecraft-be
+          image: itzg/minecraft-bedrock-server:stable
+          env:
+            - name: EULA
+              value: "TRUE"
+            - name: VERSION
+              value: "LATEST"
+            - name: TZ
+              value: "Asia/Tokyo"
+            - name: SERVER_NAME
+              value: "Minecraft BE Server"
+            - name: GAMEMODE
+              value: "survival"
+            - name: DIFFICULTY
+              value: "normal"
+            - name: MAX_PLAYERS
+              value: "10"
+            - name: ONLINE_MODE
+              value: "true"
+            - name: ALLOW_LIST
+              value: "false"
+            - name: VIEW_DISTANCE
+              value: "10"
+            - name: UID
+              value: "1000"
+            - name: GID
+              value: "1000"
+          ports:
+            - name: mc-udp
+              containerPort: 19132
+              protocol: UDP
+            - name: mc-udp-v6
+              containerPort: 19133
+              protocol: UDP
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          livenessProbe:
+            exec:
+              command: ["pgrep", "-x", "bedrock_server"]
+            # Server downloads the binary at startup; allow ample time before first check.
+            initialDelaySeconds: 90
+            periodSeconds: 30
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              memory: 2Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: minecraft-be-data

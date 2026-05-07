@@ -1,0 +1,48 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: minecraft-be
+spec:
+  endpointSelector:
+    matchLabels:
+      app: minecraft-be
+  ingress:
+    # Allow intra-namespace traffic
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: minecraft-be
+    # Allow UDP game traffic from LAN/WAN players via Cilium LoadBalancer
+    - fromEntities:
+        - world
+        - ingress
+      toPorts:
+        - ports:
+            - port: "19132"
+              protocol: UDP
+            - port: "19133"
+              protocol: UDP
+  egress:
+    # Allow DNS
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # Allow HTTPS to internet (download server binary from Mojang at startup,
+    # and Minecraft online-mode authentication)
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+            - port: "80"
+              protocol: TCP
+    # Allow access to kube-apiserver
+    - toEntities:
+        - kube-apiserver

@@ -1,0 +1,27 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: minecraft-be
+  labels:
+    release: monitoring
+    app.kubernetes.io/part-of: minecraft-be
+spec:
+  groups:
+    - name: minecraft-be
+      rules:
+        - alert: MinecraftBEDown
+          expr: kube_deployment_status_replicas_available{deployment="minecraft-be", namespace="minecraft-be"} == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Minecraft BE server is down"
+            description: "Minecraft BE server has no available replicas for 5 minutes in namespace {{ $labels.namespace }}."
+
+        - alert: MinecraftBEPodRestarting
+          expr: increase(kube_pod_container_status_restarts_total{container="minecraft-be", namespace="minecraft-be"}[1h]) > 3
+          labels:
+            severity: warning
+          annotations:
+            summary: "Minecraft BE server is restarting frequently"
+            description: "Minecraft BE server container has restarted more than 3 times in the last hour."

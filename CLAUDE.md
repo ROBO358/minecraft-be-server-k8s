@@ -1,0 +1,77 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## 概要
+
+このリポジトリは **homelab-gitops (`ROBO358/homelab-gitops`) の `apps/` レイヤに接続する Minecraft Bedrock Edition サーバーのアプリリポジトリ**。
+
+- GitHub リポジトリ: `ROBO358/minecraft-be-server-k8s`
+- コンテナイメージ: `itzg/minecraft-bedrock-server` (Docker Hub)
+  - Java Edition 用の `itzg/minecraft-server` とは**別イメージ**。Bedrock には必ずこちらを使うこと。
+- デプロイ先 namespace: `minecraft-be`（namespace 自体は homelab-gitops 側で管理）
+
+## リポジトリ構成
+
+```
+manifests/         # Kubernetes マニフェスト（Flux が直接 apply する）
+  kustomization.yaml
+  deployment.yaml
+  service.yaml
+  pvc.yaml
+  ciliumnetworkpolicy.yaml
+  prometheusrule.yaml
+```
+
+このリポジトリにはカスタムコンテナイメージがなく、CI/CD はない。Flux が `manifests/` を直接 apply する。
+
+## manifests/ の各リソース
+
+| ファイル | 内容 |
+|---|---|
+| `deployment.yaml` | `itzg/minecraft-bedrock-server:stable` を 1 レプリカで起動。strategy は **Recreate**（RWO PVC 制約 + 同時 2 台起動禁止のため必須） |
+| `service.yaml` | `type: LoadBalancer`、UDP 19132（IPv4）と UDP 19133（IPv6）を公開。Cilium LB IPAM で `192.168.1.103` を固定割り当て |
+| `pvc.yaml` | Longhorn 10Gi PVC でワールドデータ（`/data`）を永続化 |
+| `ciliumnetworkpolicy.yaml` | ingress: UDP 19132/19133 を world/ingress から許可。egress: DNS + インターネット HTTPS（サーバーバイナリのダウンロード・認証に必須） |
+| `prometheusrule.yaml` | MinecraftBEDown / MinecraftBEPodRestarting アラート（kube-state-metrics ベース） |
+
+## itzg/minecraft-bedrock-server の重要な仕様
+
+- **サーバーバイナリは起動時に Mojang からダウンロード**される。コンテナイメージにはバイナリが含まれていない。インターネット egress が必須。
+- `EULA=TRUE` の設定が必須。設定しないとサーバーが起動しない。
+- `VERSION=LATEST`（デフォルト）でコンテナ再起動時に最新版へ自動アップグレードされる。固定する場合は `VERSION=1.21.x` のように指定。
+- ポートは **UDP**。TCP ではない。Service / CiliumNetworkPolicy 両方で `protocol: UDP` が必要。
+- `UID=1000` / `GID=1000` + `fsGroup: 1000` で非 root 実行。PVC の所有権はコンテナ起動時に自動調整される。
+- サーバープロパティは環境変数（`SERVER_NAME`, `GAMEMODE`, `DIFFICULTY` 等）で設定できる。`server.properties` を直接編集してもよいが再起動で上書きされるため環境変数推奨。
+
+## サーバー設定の変更方法
+
+`deployment.yaml` の `env` セクションに環境変数を追加・変更する。主要な変数:
+
+| 変数 | 説明 |
+|---|---|
+| `SERVER_NAME` | サーバー名（クライアントのサーバーリストに表示） |
+| `GAMEMODE` | `survival` / `creative` / `adventure` |
+| `DIFFICULTY` | `peaceful` / `easy` / `normal` / `hard` |
+| `MAX_PLAYERS` | 最大同時接続数 |
+| `ONLINE_MODE` | `true` で Xbox 認証必須、`false` でオフラインモード |
+| `ALLOW_LIST` | `true` でホワイトリスト制限。`/data/allowlist.json` で管理 |
+| `VIEW_DISTANCE` | チャンク描画距離 |
+| `LEVEL_SEED` | ワールドシード値 |
+
+## LB IP の変更
+
+`service.yaml` の `io.cilium/lb-ipam-ips: 192.168.1.103` を IPAM プールの空き IP に変更すること。
+
+## homelab-gitops との責任分界
+
+| 責務 | 配置先 |
+|---|---|
+| Namespace, PodSecurity | homelab-gitops `apps/minecraft-be/namespace.yaml` |
+| RBAC（SA / ClusterRoleBinding） | homelab-gitops `apps/minecraft-be/rbac.yaml` |
+| GitRepository / Flux Kustomization 定義 | homelab-gitops `apps/minecraft-be/source.yaml` |
+| サーバー workload（Deployment / Service / PVC 等） | **このリポジトリ** `manifests/` |
+
+## CiliumNetworkPolicy の注意点
+
+egress でインターネット（`world`）への HTTPS を許可しているのは、起動時にサーバーバイナリを `minecraft.azureedge.net` 等からダウンロードするため。この egress ルールを削除するとサーバーが起動しない。

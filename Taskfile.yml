@@ -96,6 +96,3 @@ tasks:
       - echo "Scaling up deployment back to 1..."
       - kubectl scale deployment minecraft-be -n {{.NAMESPACE}} --replicas=1
       - echo "Download complete! Data saved to {{.LOCAL_WORLD_PATH}}"
-    preconditions:
-      - sh: test -d "{{.LOCAL_WORLD_PATH}}"
-        msg: "Local world directory '{{.LOCAL_WORLD_PATH}}' not found. Please place your world files there."

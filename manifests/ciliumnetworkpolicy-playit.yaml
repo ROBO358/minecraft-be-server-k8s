@@ -24,7 +24,7 @@ spec:
       toPorts:
         - ports:
             - port: "5525"
-              protocol: TCP
+              protocol: UDP
             - port: "443"
               protocol: TCP
     # Allow forwarding to Minecraft server via Service

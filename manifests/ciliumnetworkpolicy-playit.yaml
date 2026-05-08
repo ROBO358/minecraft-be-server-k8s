@@ -1,0 +1,37 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: playit-agent
+spec:
+  endpointSelector:
+    matchLabels:
+      app: playit-agent
+  egress:
+    # Allow DNS
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # Allow outbound tunnel connection to playit.gg cloud
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "5523"
+              protocol: TCP
+            - port: "443"
+              protocol: TCP
+    # Allow forwarding to Minecraft server via Service
+    - toEndpoints:
+        - matchLabels:
+            app: minecraft-be
+      toPorts:
+        - ports:
+            - port: "19132"
+              protocol: UDP

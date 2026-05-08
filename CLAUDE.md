@@ -63,6 +63,35 @@ manifests/         # Kubernetes マニフェスト（Flux が直接 apply する
 
 `service.yaml` の `io.cilium/lb-ipam-ips: 192.168.1.103` を IPAM プールの空き IP に変更すること。
 
+## playit.gg による外部公開
+
+playit.gg の agent を別 Deployment として動かし、友人がインターネット経由で接続できるようにしている。
+
+### 構成
+
+```
+友人の PC → playit.gg cloud → playit-agent Pod → minecraft-be Service (UDP 19132) → minecraft-be Pod
+```
+
+- agent は playit.gg cloud にアウトバウンド TCP 接続するだけ。インバウンドポート開放不要。
+- Minecraft server への転送先は playit.gg ダッシュボード上で `minecraft-be:19132` として設定する。
+
+### 初回セットアップ手順
+
+1. [playit.gg](https://playit.gg) でアカウント作成
+2. ダッシュボードで「New Agent」→ Docker を選択し `SECRET_KEY` を生成
+3. 1Password に `minecraft-be/playit-secret-key` というアイテムを作成し、`SECRET_KEY` の値を保存
+4. Flux が apply した後、agent Pod が起動して playit.gg ダッシュボードにエージェントが表示される
+5. ダッシュボードでトンネルを作成:
+   - Protocol: **UDP**
+   - Local address: `minecraft-be:19132`
+6. 払い出された公開アドレス（例: `abc123.mc.playit.gg:19132`）を友人に共有
+
+### SECRET_KEY の管理
+
+`externalsecret-playit.yaml` が 1Password から `Secret/playit-secret` を生成する。
+1Password のアイテム名: `minecraft-be/playit-secret-key`（`key` フィールドに値を入れること）。
+
 ## homelab-gitops との責任分界
 
 | 責務 | 配置先 |

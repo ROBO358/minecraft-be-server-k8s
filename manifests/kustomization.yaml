@@ -9,3 +9,6 @@ resources:
 - service.yaml
 - ciliumnetworkpolicy.yaml
 - prometheusrule.yaml
+- externalsecret-playit.yaml
+- deployment-playit.yaml
+- ciliumnetworkpolicy-playit.yaml

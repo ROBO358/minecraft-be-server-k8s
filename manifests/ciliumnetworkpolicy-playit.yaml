@@ -23,10 +23,15 @@ spec:
         - world
       toPorts:
         - ports:
-            - port: "5525"
+            - port: "0"
               protocol: UDP
+              endPort: 65535
             - port: "443"
               protocol: TCP
+    # Allow all egress to the same namespace to reach minecraft-be service/pods
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: minecraft-be
     # Allow access to minecraft-be server for forwarding
     - toServices:
         - k8sService:
@@ -36,6 +41,7 @@ spec:
         - ports:
             - port: "19132"
               protocol: UDP
+
     # Allow forwarding to Minecraft server via Service
     - toEndpoints:
         - matchLabels:

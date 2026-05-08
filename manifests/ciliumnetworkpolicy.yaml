@@ -46,3 +46,7 @@ spec:
     # Allow access to kube-apiserver
     - toEntities:
         - kube-apiserver
+    # Allow intra-namespace traffic
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: minecraft-be

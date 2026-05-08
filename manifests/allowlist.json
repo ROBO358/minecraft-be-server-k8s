@@ -1,6 +1,10 @@
 [
   {
-    "name": "ROBO358",
+    "name": "hoge",
+    "ignoresPlayerLimit": true
+  },
+  {
+    "name": "fuga",
     "ignoresPlayerLimit": false
   }
 ]

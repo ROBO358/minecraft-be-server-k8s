@@ -1,10 +1,18 @@
 [
   {
-    "name": "hoge",
+    "name": "ROBO358",
     "ignoresPlayerLimit": true
   },
   {
-    "name": "fuga",
+    "name": "SueCalystegia00",
+    "ignoresPlayerLimit": false
+  },
+  {
+    "name": "nikuman1448",
+    "ignoresPlayerLimit": false
+  },
+  {
+    "name": "Rai7807",
     "ignoresPlayerLimit": false
   }
 ]

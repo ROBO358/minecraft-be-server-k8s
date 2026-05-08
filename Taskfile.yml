@@ -1,0 +1,101 @@
+version: '3'
+
+vars:
+  NAMESPACE: minecraft-be
+  APP_LABEL: app=minecraft-be
+  WORLD_NAME: "Bedrock level"
+  LOCAL_WORLD_PATH: "./worlds/{{.WORLD_NAME}}"
+
+tasks:
+  upload-world:
+    desc: Upload local world data to the server
+    summary: |
+      Safely uploads the local world data to the Kubernetes PVC.
+      It scales down the deployment to 0, performs the copy, and scales it back up to 1.
+    cmds:
+      - echo "Scaling down deployment to 0..."
+      - kubectl scale deployment minecraft-be -n {{.NAMESPACE}} --replicas=0
+      - echo "Waiting for pod to terminate..."
+      - sleep 5
+      - |
+        # Temporary pod to perform the copy while the main server is down
+        cat <<EOF | kubectl apply -n {{.NAMESPACE}} -f -
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          name: world-manager
+        spec:
+          containers:
+          - name: manager
+            image: busybox
+            command: ["/bin/sh", "-c", "sleep 3600"]
+            volumeMounts:
+            - name: data
+              mountPath: /data
+          volumes:
+          - name: data
+            persistentVolumeClaim:
+              claimName: minecraft-be-data
+        EOF
+      - echo "Waiting for manager pod to be ready..."
+      - kubectl wait --for=condition=Ready pod/world-manager -n {{.NAMESPACE}} --timeout=60s
+      - echo "Cleaning up old world data on server..."
+      - kubectl exec -n {{.NAMESPACE}} world-manager -- rm -rf "/data/worlds/{{.WORLD_NAME}}"
+      - echo "Uploading '{{.LOCAL_WORLD_PATH}}'..."
+      - kubectl cp "{{.LOCAL_WORLD_PATH}}" {{.NAMESPACE}}/world-manager:/data/worlds/
+      - echo "Correcting permissions..."
+      - kubectl exec -n {{.NAMESPACE}} world-manager -- chown -R 1000:1000 "/data/worlds/{{.WORLD_NAME}}"
+      - echo "Cleaning up manager pod..."
+      - kubectl delete pod world-manager -n {{.NAMESPACE}} --now
+      - echo "Scaling up deployment back to 1..."
+      - kubectl scale deployment minecraft-be -n {{.NAMESPACE}} --replicas=1
+      - echo "Upload complete!"
+    preconditions:
+      - sh: test -d "{{.LOCAL_WORLD_PATH}}"
+        msg: "Local world directory '{{.LOCAL_WORLD_PATH}}' not found. Please place your world files there."
+
+  download-world:
+    desc: Download world data from the server to local
+    summary: |
+      Safely downloads the world data from the Kubernetes PVC to your local machine.
+      It scales down the deployment to 0, performs the copy, and scales it back up to 1.
+    cmds:
+      - echo "Scaling down deployment to 0..."
+      - kubectl scale deployment minecraft-be -n {{.NAMESPACE}} --replicas=0
+      - echo "Waiting for pod to terminate..."
+      - sleep 5
+      - |
+        # Temporary pod to perform the copy while the main server is down
+        cat <<EOF | kubectl apply -n {{.NAMESPACE}} -f -
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          name: world-manager
+        spec:
+          containers:
+          - name: manager
+            image: busybox
+            command: ["/bin/sh", "-c", "sleep 3600"]
+            volumeMounts:
+            - name: data
+              mountPath: /data
+          volumes:
+          - name: data
+            persistentVolumeClaim:
+              claimName: minecraft-be-data
+        EOF
+      - echo "Waiting for manager pod to be ready..."
+      - kubectl wait --for=condition=Ready pod/world-manager -n {{.NAMESPACE}} --timeout=60s
+      - echo "Preparing local directory..."
+      - mkdir -p ./worlds/
+      - rm -rf "{{.LOCAL_WORLD_PATH}}"
+      - echo "Downloading world data from server..."
+      - kubectl cp {{.NAMESPACE}}/world-manager:/data/worlds/{{.WORLD_NAME}} "{{.LOCAL_WORLD_PATH}}"
+      - echo "Cleaning up manager pod..."
+      - kubectl delete pod world-manager -n {{.NAMESPACE}} --now
+      - echo "Scaling up deployment back to 1..."
+      - kubectl scale deployment minecraft-be -n {{.NAMESPACE}} --replicas=1
+      - echo "Download complete! Data saved to {{.LOCAL_WORLD_PATH}}"
+    preconditions:
+      - sh: test -d "{{.LOCAL_WORLD_PATH}}"
+        msg: "Local world directory '{{.LOCAL_WORLD_PATH}}' not found. Please place your world files there."

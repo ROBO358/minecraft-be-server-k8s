@@ -27,6 +27,13 @@ spec:
               protocol: UDP
             - port: "443"
               protocol: TCP
+    # Allow traffic from a specific IP (e.g., a trusted client)
+    - toCIDR:
+        - "192.168.1.103/32"
+      toPorts:
+        - ports:
+            - port: "19132"
+              protocol: UDP
     # Allow forwarding to Minecraft server via Service
     - toEndpoints:
         - matchLabels:

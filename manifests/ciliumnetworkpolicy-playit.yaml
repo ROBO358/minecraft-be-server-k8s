@@ -18,21 +18,17 @@ spec:
               protocol: UDP
             - port: "53"
               protocol: TCP
-    # Allow outbound tunnel connection to playit.gg cloud
+    # Allow outbound tunnel connection to playit.gg cloud (Control: 443/TCP, Data: 5500-5600/UDP)
     - toEntities:
         - world
       toPorts:
         - ports:
-            - port: "0"
+            - port: "5500"
               protocol: UDP
-              endPort: 65535
+              endPort: 5600
             - port: "443"
               protocol: TCP
-    # Allow all egress to the same namespace to reach minecraft-be service/pods
-    - toEndpoints:
-        - matchLabels:
-            io.kubernetes.pod.namespace: minecraft-be
-    # Allow access to minecraft-be server for forwarding
+    # Allow access to minecraft-be server for forwarding (Internal UDP 19132)
     - toServices:
         - k8sService:
             serviceName: minecraft-be
@@ -41,8 +37,7 @@ spec:
         - ports:
             - port: "19132"
               protocol: UDP
-
-    # Allow forwarding to Minecraft server via Service
+    # Allow forwarding directly to Minecraft server pods
     - toEndpoints:
         - matchLabels:
             app: minecraft-be
@@ -50,3 +45,4 @@ spec:
         - ports:
             - port: "19132"
               protocol: UDP
+

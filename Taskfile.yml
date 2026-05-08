@@ -96,3 +96,44 @@ tasks:
       - echo "Scaling up deployment back to 1..."
       - kubectl scale deployment minecraft-be -n {{.NAMESPACE}} --replicas=1
       - echo "Download complete! Data saved to {{.LOCAL_WORLD_PATH}}"
+
+  reset-world:
+    desc: Reset the world data (CAUTION: PERMANENT DATA LOSS)
+    summary: |
+      Permanently deletes the world data from the Kubernetes PVC.
+      A new world will be generated automatically when the server restarts.
+    cmds:
+      - echo "!!! WARNING !!! This will permanently delete the world data '{{.WORLD_NAME}}'."
+      - echo "Scaling down deployment to 0..."
+      - kubectl scale deployment minecraft-be -n {{.NAMESPACE}} --replicas=0
+      - echo "Waiting for pod to terminate..."
+      - sleep 5
+      - |
+        # Temporary pod to perform the deletion
+        cat <<EOF | kubectl apply -n {{.NAMESPACE}} -f -
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          name: world-manager
+        spec:
+          containers:
+          - name: manager
+            image: busybox
+            command: ["/bin/sh", "-c", "sleep 3600"]
+            volumeMounts:
+            - name: data
+              mountPath: /data
+          volumes:
+          - name: data
+            persistentVolumeClaim:
+              claimName: minecraft-be-data
+        EOF
+      - echo "Waiting for manager pod to be ready..."
+      - kubectl wait --for=condition=Ready pod/world-manager -n {{.NAMESPACE}} --timeout=60s
+      - echo "DELETING world data on server: /data/worlds/{{.WORLD_NAME}} ..."
+      - kubectl exec -n {{.NAMESPACE}} world-manager -- rm -rf "/data/worlds/{{.WORLD_NAME}}"
+      - echo "Cleaning up manager pod..."
+      - kubectl delete pod world-manager -n {{.NAMESPACE}} --now
+      - echo "Scaling up deployment back to 1..."
+      - kubectl scale deployment minecraft-be -n {{.NAMESPACE}} --replicas=1
+      - echo "World reset complete! A new world will be generated on startup."

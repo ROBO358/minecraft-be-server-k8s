@@ -14,6 +14,8 @@ spec:
       labels:
         app: playit-agent
     spec:
+      securityContext:
+        runAsUser: 1000
       containers:
         - name: playit-agent
           image: ghcr.io/playit-cloud/playit-agent:0.17

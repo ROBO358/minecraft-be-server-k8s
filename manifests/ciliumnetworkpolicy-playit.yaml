@@ -27,9 +27,11 @@ spec:
               protocol: UDP
             - port: "443"
               protocol: TCP
-    # Allow traffic from a specific IP (e.g., a trusted client)
-    - toCIDR:
-        - "192.168.1.103/32"
+    # Allow access to minecraft-be server for forwarding
+    - toServices:
+        - k8sService:
+            serviceName: minecraft-be
+            namespace: minecraft-be
       toPorts:
         - ports:
             - port: "19132"

@@ -98,7 +98,7 @@ tasks:
       - echo "Download complete! Data saved to {{.LOCAL_WORLD_PATH}}"
 
   reset-world:
-    desc: Reset the world data (CAUTION: PERMANENT DATA LOSS)
+    desc: "Reset the world data (CAUTION: PERMANENT DATA LOSS)"
     summary: |
       Permanently deletes the world data from the Kubernetes PVC.
       A new world will be generated automatically when the server restarts.
@@ -130,7 +130,7 @@ tasks:
         EOF
       - echo "Waiting for manager pod to be ready..."
       - kubectl wait --for=condition=Ready pod/world-manager -n {{.NAMESPACE}} --timeout=60s
-      - echo "DELETING world data on server: /data/worlds/{{.WORLD_NAME}} ..."
+      - 'echo "DELETING world data on server: /data/worlds/{{.WORLD_NAME}} ..."'
       - kubectl exec -n {{.NAMESPACE}} world-manager -- rm -rf "/data/worlds/{{.WORLD_NAME}}"
       - echo "Cleaning up manager pod..."
       - kubectl delete pod world-manager -n {{.NAMESPACE}} --now

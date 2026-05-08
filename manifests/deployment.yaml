@@ -41,8 +41,9 @@ spec:
             - name: ONLINE_MODE
               value: "true"
             - name: ALLOW_LIST
-              value: "false"
+              value: "true"
             - name: VIEW_DISTANCE
+
               value: "10"
             - name: UID
               value: "1000"
@@ -58,6 +59,9 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /data
+            - name: allowlist
+              mountPath: /data/allowlist.json
+              subPath: allowlist.json
           resources:
             requests:
               cpu: 500m
@@ -74,3 +78,6 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: minecraft-be-data
+        - name: allowlist
+          configMap:
+            name: minecraft-be-allowlist

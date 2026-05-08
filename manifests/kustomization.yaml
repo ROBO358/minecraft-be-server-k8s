@@ -12,3 +12,8 @@ resources:
 - externalsecret-playit.yaml
 - deployment-playit.yaml
 - ciliumnetworkpolicy-playit.yaml
+
+configMapGenerator:
+- name: minecraft-be-allowlist
+  files:
+  - allowlist.json

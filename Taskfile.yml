@@ -42,7 +42,7 @@ tasks:
       - echo "Cleaning up old world data on server..."
       - kubectl exec -n {{.NAMESPACE}} world-manager -- rm -rf "/data/worlds/{{.WORLD_NAME}}"
       - echo "Uploading '{{.LOCAL_WORLD_PATH}}'..."
-      - kubectl cp "{{.LOCAL_WORLD_PATH}}" {{.NAMESPACE}}/world-manager:/data/worlds/
+      - kubectl cp "{{.LOCAL_WORLD_PATH}}" {{.NAMESPACE}}/world-manager:"/data/worlds/{{.WORLD_NAME}}"
       - echo "Correcting permissions..."
       - kubectl exec -n {{.NAMESPACE}} world-manager -- chown -R 1000:1000 "/data/worlds/{{.WORLD_NAME}}"
       - echo "Cleaning up manager pod..."
@@ -90,7 +90,7 @@ tasks:
       - mkdir -p ./worlds/
       - rm -rf "{{.LOCAL_WORLD_PATH}}"
       - echo "Downloading world data from server..."
-      - kubectl cp {{.NAMESPACE}}/world-manager:/data/worlds/{{.WORLD_NAME}} "{{.LOCAL_WORLD_PATH}}"
+      - kubectl cp {{.NAMESPACE}}/world-manager:"/data/worlds/{{.WORLD_NAME}}" "{{.LOCAL_WORLD_PATH}}"
       - echo "Cleaning up manager pod..."
       - kubectl delete pod world-manager -n {{.NAMESPACE}} --now
       - echo "Scaling up deployment back to 1..."

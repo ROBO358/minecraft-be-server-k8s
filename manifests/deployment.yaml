@@ -58,13 +58,6 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /data
-          livenessProbe:
-            exec:
-              command: ["pgrep", "-x", "bedrock_server"]
-            # Server downloads the binary at startup; allow ample time before first check.
-            initialDelaySeconds: 90
-            periodSeconds: 30
-            failureThreshold: 3
           resources:
             requests:
               cpu: 500m

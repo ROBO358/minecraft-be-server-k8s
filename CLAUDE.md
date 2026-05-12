@@ -14,13 +14,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## リポジトリ構成
 
 ```
-manifests/         # Kubernetes マニフェスト（Flux が直接 apply する）
+manifests/                          # Kubernetes マニフェスト（Flux が直接 apply する）
   kustomization.yaml
   deployment.yaml
   service.yaml
   pvc.yaml
+  allowlist.json                    # ホワイトリスト（ConfigMap として apply される）
   ciliumnetworkpolicy.yaml
   prometheusrule.yaml
+  externalsecret-playit.yaml        # playit.gg SECRET_KEY（1Password → ESO）
+  deployment-playit.yaml            # playit.gg agent
+  ciliumnetworkpolicy-playit.yaml   # playit-agent の egress ポリシー
+Taskfile.yml                        # ワールドデータ操作タスク
 ```
 
 このリポジトリにはカスタムコンテナイメージがなく、CI/CD はない。Flux が `manifests/` を直接 apply する。
@@ -32,8 +37,12 @@ manifests/         # Kubernetes マニフェスト（Flux が直接 apply する
 | `deployment.yaml` | `itzg/minecraft-bedrock-server:stable` を 1 レプリカで起動。strategy は **Recreate**（RWO PVC 制約 + 同時 2 台起動禁止のため必須） |
 | `service.yaml` | `type: LoadBalancer`、UDP 19132（IPv4）と UDP 19133（IPv6）を公開。Cilium LB IPAM で `192.168.1.103` を固定割り当て |
 | `pvc.yaml` | Longhorn 10Gi PVC でワールドデータ（`/data`）を永続化 |
-| `ciliumnetworkpolicy.yaml` | ingress: UDP 19132/19133 を world/ingress から許可。egress: DNS + インターネット HTTPS（サーバーバイナリのダウンロード・認証に必須） |
+| `allowlist.json` | プレイヤーホワイトリスト。`configMapGenerator` で ConfigMap 化され `/data/allowlist.json` にマウント。**変更すると Pod が再起動される**（Kustomize のハッシュ更新による） |
+| `ciliumnetworkpolicy.yaml` | minecraft-be の ingress/egress ポリシー |
 | `prometheusrule.yaml` | MinecraftBEDown / MinecraftBEPodRestarting アラート（kube-state-metrics ベース） |
+| `externalsecret-playit.yaml` | 1Password `minecraft-be/playit-secret-key` から `Secret/playit-secret` を生成 |
+| `deployment-playit.yaml` | `ghcr.io/playit-cloud/playit-agent:0.17` を 1 レプリカで起動 |
+| `ciliumnetworkpolicy-playit.yaml` | playit-agent の egress: DNS / playit.gg cloud (TCP 443, UDP 5500-5600) / minecraft-be pod (UDP 19132) |
 
 ## itzg/minecraft-bedrock-server の重要な仕様
 
@@ -73,8 +82,8 @@ playit.gg の agent を別 Deployment として動かし、友人がインター
 友人の PC → playit.gg cloud → playit-agent Pod → minecraft-be Service (UDP 19132) → minecraft-be Pod
 ```
 
-- agent は playit.gg cloud にアウトバウンド TCP 接続するだけ。インバウンドポート開放不要。
-- Minecraft server への転送先は playit.gg ダッシュボード上で `minecraft-be:19132` として設定する。
+- agent は playit.gg cloud にアウトバウンド接続するだけ。インバウンドポート開放不要。
+- Minecraft server への転送先は playit.gg ダッシュボード上で ClusterIP（`10.103.116.210:19132`）または DNS 名（`minecraft-be.minecraft-be.svc.cluster.local:19132`）として設定する。
 
 ### 初回セットアップ手順
 
@@ -100,6 +109,17 @@ playit.gg の agent を別 Deployment として動かし、友人がインター
 | RBAC（SA / ClusterRoleBinding） | homelab-gitops `apps/minecraft-be/rbac.yaml` |
 | GitRepository / Flux Kustomization 定義 | homelab-gitops `apps/minecraft-be/source.yaml` |
 | サーバー workload（Deployment / Service / PVC 等） | **このリポジトリ** `manifests/` |
+
+## Taskfile タスク
+
+| タスク | 内容 |
+|---|---|
+| `task upload-world` | ローカルのワールドデータを PVC にアップロード |
+| `task download-world` | PVC からワールドデータをローカルにダウンロード |
+| `task reset-world` | PVC 上のワールドデータを削除（確認プロンプトあり） |
+
+いずれも scale→0 → world-manager Pod 起動 → 操作 → scale→1 の流れで動作する。
+途中失敗時も `defer` により scale-up と Pod 削除が確実に実行される。
 
 ## CiliumNetworkPolicy の注意点
 

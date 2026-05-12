@@ -11,14 +11,18 @@ tasks:
     desc: Upload local world data to the server
     summary: |
       Safely uploads the local world data to the Kubernetes PVC.
-      It scales down the deployment to 0, performs the copy, and scales it back up to 1.
+      Scales down the deployment, copies data, then scales back up.
+      Scale-up and pod cleanup run even if an intermediate step fails.
+    preconditions:
+      - sh: test -d "{{.LOCAL_WORLD_PATH}}"
+        msg: "Local world directory '{{.LOCAL_WORLD_PATH}}' not found."
     cmds:
       - echo "Scaling down deployment to 0..."
       - kubectl scale deployment minecraft-be -n {{.NAMESPACE}} --replicas=0
+      - defer: kubectl scale deployment minecraft-be -n {{.NAMESPACE}} --replicas=1
       - echo "Waiting for pod to terminate..."
-      - sleep 5
+      - kubectl wait pod -l {{.APP_LABEL}} -n {{.NAMESPACE}} --for=delete --timeout=120s
       - |
-        # Temporary pod to perform the copy while the main server is down
         cat <<EOF | kubectl apply -n {{.NAMESPACE}} -f -
         apiVersion: v1
         kind: Pod
@@ -37,6 +41,7 @@ tasks:
             persistentVolumeClaim:
               claimName: minecraft-be-data
         EOF
+      - defer: kubectl delete pod world-manager -n {{.NAMESPACE}} --ignore-not-found --now
       - echo "Waiting for manager pod to be ready..."
       - kubectl wait --for=condition=Ready pod/world-manager -n {{.NAMESPACE}} --timeout=60s
       - echo "Cleaning up old world data on server..."
@@ -45,27 +50,21 @@ tasks:
       - kubectl cp "{{.LOCAL_WORLD_PATH}}" {{.NAMESPACE}}/world-manager:"/data/worlds/{{.WORLD_NAME}}"
       - echo "Correcting permissions..."
       - kubectl exec -n {{.NAMESPACE}} world-manager -- chown -R 1000:1000 "/data/worlds/{{.WORLD_NAME}}"
-      - echo "Cleaning up manager pod..."
-      - kubectl delete pod world-manager -n {{.NAMESPACE}} --now
-      - echo "Scaling up deployment back to 1..."
-      - kubectl scale deployment minecraft-be -n {{.NAMESPACE}} --replicas=1
       - echo "Upload complete!"
-    preconditions:
-      - sh: test -d "{{.LOCAL_WORLD_PATH}}"
-        msg: "Local world directory '{{.LOCAL_WORLD_PATH}}' not found. Please place your world files there."
 
   download-world:
     desc: Download world data from the server to local
     summary: |
       Safely downloads the world data from the Kubernetes PVC to your local machine.
-      It scales down the deployment to 0, performs the copy, and scales it back up to 1.
+      Scales down the deployment, copies data, then scales back up.
+      Scale-up and pod cleanup run even if an intermediate step fails.
     cmds:
       - echo "Scaling down deployment to 0..."
       - kubectl scale deployment minecraft-be -n {{.NAMESPACE}} --replicas=0
+      - defer: kubectl scale deployment minecraft-be -n {{.NAMESPACE}} --replicas=1
       - echo "Waiting for pod to terminate..."
-      - sleep 5
+      - kubectl wait pod -l {{.APP_LABEL}} -n {{.NAMESPACE}} --for=delete --timeout=120s
       - |
-        # Temporary pod to perform the copy while the main server is down
         cat <<EOF | kubectl apply -n {{.NAMESPACE}} -f -
         apiVersion: v1
         kind: Pod
@@ -84,6 +83,7 @@ tasks:
             persistentVolumeClaim:
               claimName: minecraft-be-data
         EOF
+      - defer: kubectl delete pod world-manager -n {{.NAMESPACE}} --ignore-not-found --now
       - echo "Waiting for manager pod to be ready..."
       - kubectl wait --for=condition=Ready pod/world-manager -n {{.NAMESPACE}} --timeout=60s
       - echo "Preparing local directory..."
@@ -91,10 +91,6 @@ tasks:
       - rm -rf "{{.LOCAL_WORLD_PATH}}"
       - echo "Downloading world data from server..."
       - kubectl cp {{.NAMESPACE}}/world-manager:"/data/worlds/{{.WORLD_NAME}}" "{{.LOCAL_WORLD_PATH}}"
-      - echo "Cleaning up manager pod..."
-      - kubectl delete pod world-manager -n {{.NAMESPACE}} --now
-      - echo "Scaling up deployment back to 1..."
-      - kubectl scale deployment minecraft-be -n {{.NAMESPACE}} --replicas=1
       - echo "Download complete! Data saved to {{.LOCAL_WORLD_PATH}}"
 
   reset-world:
@@ -102,14 +98,14 @@ tasks:
     summary: |
       Permanently deletes the world data from the Kubernetes PVC.
       A new world will be generated automatically when the server restarts.
+    prompt: "ALL WORLD DATA will be permanently deleted and cannot be recovered. Are you sure?"
     cmds:
-      - echo "!!! WARNING !!! This will permanently delete the world data '{{.WORLD_NAME}}'."
       - echo "Scaling down deployment to 0..."
       - kubectl scale deployment minecraft-be -n {{.NAMESPACE}} --replicas=0
+      - defer: kubectl scale deployment minecraft-be -n {{.NAMESPACE}} --replicas=1
       - echo "Waiting for pod to terminate..."
-      - sleep 5
+      - kubectl wait pod -l {{.APP_LABEL}} -n {{.NAMESPACE}} --for=delete --timeout=120s
       - |
-        # Temporary pod to perform the deletion
         cat <<EOF | kubectl apply -n {{.NAMESPACE}} -f -
         apiVersion: v1
         kind: Pod
@@ -128,12 +124,9 @@ tasks:
             persistentVolumeClaim:
               claimName: minecraft-be-data
         EOF
+      - defer: kubectl delete pod world-manager -n {{.NAMESPACE}} --ignore-not-found --now
       - echo "Waiting for manager pod to be ready..."
       - kubectl wait --for=condition=Ready pod/world-manager -n {{.NAMESPACE}} --timeout=60s
-      - 'echo "DELETING world data on server: /data/worlds/{{.WORLD_NAME}} ..."'
+      - 'echo "DELETING world data: /data/worlds/{{.WORLD_NAME}} ..."'
       - kubectl exec -n {{.NAMESPACE}} world-manager -- rm -rf "/data/worlds/{{.WORLD_NAME}}"
-      - echo "Cleaning up manager pod..."
-      - kubectl delete pod world-manager -n {{.NAMESPACE}} --now
-      - echo "Scaling up deployment back to 1..."
-      - kubectl scale deployment minecraft-be -n {{.NAMESPACE}} --replicas=1
       - echo "World reset complete! A new world will be generated on startup."

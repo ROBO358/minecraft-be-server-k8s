@@ -43,10 +43,9 @@ spec:
               protocol: TCP
             - port: "80"
               protocol: TCP
-    # Allow access to kube-apiserver
-    - toEntities:
-        - kube-apiserver
-    # Allow egress back to playit-agent for tunnel response traffic
+    # Allow egress back to playit-agent for UDP response traffic.
+    # toPorts is omitted intentionally: UDP responses use ephemeral source ports
+    # that cannot be predicted, so port restriction is not applicable here.
     - toEndpoints:
         - matchLabels:
             app: playit-agent

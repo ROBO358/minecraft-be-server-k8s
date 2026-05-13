@@ -41,8 +41,6 @@ spec:
         - ports:
             - port: "443"
               protocol: TCP
-            - port: "80"
-              protocol: TCP
     # Allow egress back to playit-agent for UDP response traffic.
     # toPorts is omitted intentionally: UDP responses use ephemeral source ports
     # that cannot be predicted, so port restriction is not applicable here.
